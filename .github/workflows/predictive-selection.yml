@@ -90,9 +90,14 @@ jobs:
       # costs nothing, never depends on any external service.
       - name: Tier 1 — static impact analysis
         run: |
-          node ../.github/predictive-testing/scripts/static-impact-analysis.mjs . \
-            ${{ steps.changed.outputs.files }} \
-            > /tmp/tier1.json
+          if [ -z "$(echo '${{ steps.changed.outputs.files }}' | tr -d '[:space:]')" ]; then
+            echo "No src/tests files changed — Tier 1: writing [] and skipping."
+            echo '[]' > /tmp/tier1.json
+          else
+            node ../.github/predictive-testing/scripts/static-impact-analysis.mjs . \
+              ${{ steps.changed.outputs.files }} \
+              > /tmp/tier1.json
+          fi
           cat /tmp/tier1.json
 
       # Tier 2 — targeted blast-radius check via a plain OpenAI-compatible chat
@@ -105,11 +110,16 @@ jobs:
           TRUEFOUNDRY_MODEL_BASE_URL: ${{ secrets.TRUEFOUNDRY_MODEL_BASE_URL }}
           TRUEFOUNDRY_MODEL_API_KEY: ${{ secrets.TRUEFOUNDRY_MODEL_API_KEY }}
         run: |
-          npm i --no-save openai
-          node ../.github/predictive-testing/scripts/agentic-blast-radius.mjs \
-            . \
-            ${{ steps.changed.outputs.files }} \
-            > /tmp/tier2.json
+          if [ -z "$(echo '${{ steps.changed.outputs.files }}' | tr -d '[:space:]')" ]; then
+            echo "No src/tests files changed — Tier 2: writing [] and skipping."
+            echo '[]' > /tmp/tier2.json
+          else
+            npm i --no-save openai
+            node ../.github/predictive-testing/scripts/agentic-blast-radius.mjs \
+              . \
+              ${{ steps.changed.outputs.files }} \
+              > /tmp/tier2.json
+          fi
           cat /tmp/tier2.json
 
       - name: Merge Tier 1 + Tier 2 selection
