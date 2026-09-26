@@ -141,14 +141,11 @@ jobs:
           cat /tmp/selected.json
 
       - name: Install dependencies
-        env:
-          # husky's `prepare` script (defined in playwright-study/package.json
-          # as `husky install`) walks up from cwd to find .git. In this repo
-          # .git lives at the parent (one level up from playwright-study/), not
-          # inside it — point husky there explicitly so npm ci doesn't fail
-          # with "husky - .git can't be found".
-          HUSKY_GIT_DIR: ${{ github.workspace }}/.git
-        run: npm ci
+        # --ignore-scripts skips the `husky install` prepare hook: husky 8.x
+        # doesn't honor HUSKY_GIT_DIR (only newer versions do) and the .git
+        # directory lives at the repo root, one level above cwd. Husky is
+        # irrelevant to a CI test runner anyway.
+        run: npm ci --ignore-scripts
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
