@@ -127,7 +127,7 @@ Since this is a demo/practice app rather than a live product, "success" is defin
 - The feature can be demoed end-to-end live: type → filter → clear → no-results state → sort+filter combo.
 - (Primary hackathon goal) The QE/test-generation agent under development can consume this PRD and correctly produce accurate, non-trivial test cases for the feature without additional hand-holding — this PRD's job is to be a realistic, complete input for that agent.
 
-## 12. Test Case Traceability Hooks
+## 12. Acceptance Criteria
 
 For downstream test-generation, the following stable selectors are the contract this feature must expose:
 
@@ -143,13 +143,7 @@ Behavioral contract for automated test generation:
 - Given a non-empty search term, clicking `button-clear-search` restores all 6 products and empties `search-products-input`.
 - Given an active sort order (e.g. Price low–high) and an active filter matching 3 products, those 3 products remain visible in price-ascending order.
 
-## 13. Open Questions
-
-1. Should the filter box be added to *only* the Inventory page, or also considered for a future "search within cart" use case? (Current recommendation: Inventory only, for v1.)
-2. Do we want the results-count label visible even when the search box is empty (always-on "Showing 6 of 6 products"), or only on active filtering, as specified in FR5/FR8? (Current recommendation: only on active filtering, to minimize visual noise.)
-3. Any preference on debounce timing (150ms proposed) — is instant (0ms) filtering acceptable given the small catalog size?
-
-## 14. Appendix: Relevant Existing App Context
+## 13. Appendix: Relevant Existing App Context
 
 - Seeded test accounts (`standard_user`, `locked_out_user`, `problem_user`, `performance_glitch_user`), password `secret_sauce` for all.
 - Current product catalog (6 items): Sauce Labs Backpack, Sauce Labs Bike Light, Sauce Labs Bolt T-Shirt, Test.allTheThings() T-Shirt (Red), Sauce Labs Onesie, Sauce Labs Fleece Jacket.
