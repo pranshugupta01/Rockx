@@ -1,0 +1,8 @@
+{
+  "name": "ai-test-orchestrator",
+  "description": "AI Test Orchestrator — generic, app-agnostic QA workflow driven from a Linear ticket id (PRA-<number>). The ai-test-orchestrator agent drives the pipeline end-to-end, dispatching to 4 skills: linear-ticket-reader, github-pr-reader, generate-bdd-tests, and playwright-test-executor. Generates BDD test scenarios and posts them as a comment on the ticket, then, once a PR is linked, checks out that branch and executes the scenarios live via Playwright MCP, reporting a pass/fail diff against the previous run. Uses only GitHub MCP, Linear MCP, and Playwright MCP.",
+  "version": "3.0.0",
+  "author": {
+    "name": "QE"
+  }
+}
