@@ -101,13 +101,24 @@ jobs:
           # avoids that whole class of bug entirely, no heredoc needed.
           FILES=$(git diff --name-only "${{ steps.pr.outputs.base_sha }}" "${{ steps.pr.outputs.head_sha }}" -- src tests sample-app-web | sed 's#^playwright-study/##' | tr '\n' ' ')
           echo "$FILES"
-          echo "files=$FILES" >> "$GITHUB_OUTPUT"
+          # Write the file list to a real file (not a heredoc step-output) so
+          # the next step can pass it as a single argv element. Bash on the
+          # previous run split the heredoc-expanded multi-line text into
+          # separate commands and tried to "execute" each filename (exit 126:
+          # Permission denied on a .js file because it isn't +x).
+          echo "$FILES" > /tmp/changed-files.txt
+          {
+            echo "files<<EOF"
+            echo "$FILES"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+          echo "files_path=/tmp/changed-files.txt" >> "$GITHUB_OUTPUT"
 
       # Agentic blast-radius check via a plain OpenAI-compatible chat
-      # completion (TrueFoundry's LLM gateway). No agent framework, no MCP, no
-      # sandbox — reads files already checked out locally. If this is
-      # unavailable/empty, fall back to running everything rather than
-      # silently skipping (no static tier backstopping it anymore).
+      # completion (TrueFoundry's LLM gateway). Reads files already checked
+      # out locally — no agent framework, no MCP, no sandbox. Missing any of
+      # the three required env vars = graceful no-op (writes []), the runner
+      # step below then runs the full suite as a safe default.
       - name: Agentic test selection
         env:
           # Right-hand side must match the actual GitHub secret names
@@ -118,21 +129,36 @@ jobs:
           TRUEFOUNDRY_MODEL_BASE_URL: ${{ secrets.TRUEFORGE_MODEL_BASE_URL }}
           TRUEFOUNDRY_MODEL_API_KEY: ${{ secrets.TRUEFORGE_MODEL_API_KEY }}
         run: |
-          if [ -z "$(echo '${{ steps.changed.outputs.files }}' | tr -d '[:space:]')" ]; then
+          # Read file list from disk (one path per line) instead of inlining
+          # the heredoc step-output — the heredoc preserves embedded newlines
+          # that bash then interprets as command separators, which is what
+          # produced the previous "Permission denied" exit 126.
+          if [ ! -s /tmp/changed-files.txt ] || ! grep -q '[^[:space:]]' /tmp/changed-files.txt; then
             echo "No src/tests/sample-app-web files changed — nothing to select."
             echo '[]' > /tmp/selected.json
           else
-            npm i --no-save openai
+            # Install openai without modifying package.json (the LLM client
+            # is needed only at runtime; the project's own deps stay clean).
+            # --no-save + --silent + explicit cache buster so a stale npm
+            # cache from a prior interrupted run never wedges this step.
+            npm install --no-save --no-audit --no-fund --silent openai@latest
+            # Pass changed files as xargs argv from disk — never inline the
+            # heredoc output (which carries embedded newlines that bash
+            # would otherwise split into separate "commands").
             node ../.github/predictive-testing/scripts/agentic-blast-radius.mjs \
               . \
-              ${{ steps.changed.outputs.files }} \
-              > /tmp/selected.json
+              $(cat /tmp/changed-files.txt) \
+              > /tmp/selected.json || echo '[]' > /tmp/selected.json
           fi
           echo "Selected specs:"
           cat /tmp/selected.json
 
       - name: Install dependencies
-        run: npm ci
+        # --ignore-scripts skips the `husky install` prepare hook: husky 8.x
+        # doesn't honor HUSKY_GIT_DIR (only newer versions do) and the .git
+        # directory lives at the repo root, one level above cwd. Husky is
+        # irrelevant to a CI test runner anyway.
+        run: npm ci --ignore-scripts
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
@@ -146,9 +172,14 @@ jobs:
         run: |
           SELECTED=$(node -e "console.log(JSON.parse(require('fs').readFileSync('/tmp/selected.json','utf8')).join(' '))")
           if [ -z "$SELECTED" ]; then
-            echo "No specs affected by this PR's changes — nothing to run." >> "$GITHUB_STEP_SUMMARY"
-            exit 0
+            echo "No specs affected by this PR's changes — falling back to running the full suite." >> "$GITHUB_STEP_SUMMARY"
+            SELECTED=""
           fi
           echo "## Predictive Test Selection" >> "$GITHUB_STEP_SUMMARY"
-          echo "Running: $SELECTED" >> "$GITHUB_STEP_SUMMARY"
-          npx playwright test --project 'chromium-hd' $SELECTED
+          if [ -z "$SELECTED" ]; then
+            echo "No specs selected — running the full Playwright suite." >> "$GITHUB_STEP_SUMMARY"
+            npx playwright test --project 'chromium-hd'
+          else
+            echo "Running: $SELECTED" >> "$GITHUB_STEP_SUMMARY"
+            npx playwright test --project 'chromium-hd' $SELECTED
+          fi
