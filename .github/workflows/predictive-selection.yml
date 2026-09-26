@@ -91,8 +91,8 @@ jobs:
           # to get paths relative to this subfolder, which is what the
           # static-impact-analysis script (run with absRoot=.) expects.
           # IMPORTANT: this must end up SPACE-separated on ONE line. Every
-          # downstream step interpolates ${{ steps.changed.outputs.files }}
-          # inline into a multi-line bash script via GitHub's own ${{ }} text
+          # downstream step interpolates steps.changed.outputs.files inline
+          # into a multi-line bash script via GitHub Actions' own expression
           # substitution, which happens BEFORE bash ever parses the script —
           # a newline-separated value here silently splits one intended
           # command into several separate shell statements downstream (this
