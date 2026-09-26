@@ -33,6 +33,16 @@ if (missing.length) {
   process.exit(0);
 }
 
+// Strip ALL whitespace, not just leading/trailing: a secret pasted from a
+// display that wrapped the value can end up with a literal newline baked
+// into the middle of the token. HTTP header values can't contain newlines
+// at all, so the fetch Headers API throws "invalid header value" if this
+// isn't cleaned first — none of these three values (a base64url JWT, a
+// plain URL, a model id) can legitimately contain whitespace anyway.
+const MODEL_BASE_URL = process.env.TRUEFOUNDRY_MODEL_BASE_URL.replace(/\s+/g, '');
+const MODEL_API_KEY = process.env.TRUEFOUNDRY_MODEL_API_KEY.replace(/\s+/g, '');
+const MODEL_ID = process.env.TRUEFOUNDRY_MODEL_ID.replace(/\s+/g, '');
+
 function walkDir(dir, out) {
   if (!existsSync(dir)) return out;
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -90,8 +100,8 @@ Respond with ONLY a JSON array of affected spec file paths exactly as shown in t
   try {
     const { default: OpenAI } = await import('openai');
     client = new OpenAI({
-      baseURL: process.env.TRUEFOUNDRY_MODEL_BASE_URL,
-      apiKey: process.env.TRUEFOUNDRY_MODEL_API_KEY,
+      baseURL: MODEL_BASE_URL,
+      apiKey: MODEL_API_KEY,
     });
   } catch (err) {
     console.error(`Tier 2: openai package unavailable (${err.message}) — skipping.`);
@@ -102,7 +112,7 @@ Respond with ONLY a JSON array of affected spec file paths exactly as shown in t
   let completion;
   try {
     completion = await client.chat.completions.create({
-      model: process.env.TRUEFOUNDRY_MODEL_ID,
+      model: MODEL_ID,
       messages: [{ role: 'user', content: prompt }],
       temperature: 0,
     });

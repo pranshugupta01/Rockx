@@ -173,11 +173,13 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
-      - name: Serve app under test
-        run: |
-          npx serve -c ./serve.json -s ./sample-app-web -l 3000 &
-          npx wait-on http://localhost:3000
-
+      # No manual serve step here — playwright.config.ts already has its own
+      # webServer block running this exact `serve` command on port 3000, and
+      # its reuseExistingServer: !process.env.CI means it deliberately
+      # refuses to reuse an already-running one in CI. Running it ourselves
+      # too caused a port-3000 collision ("already used ... set
+      # reuseExistingServer:true"). Let Playwright own starting/waiting for
+      # its own server.
       - name: Run selected tests
         run: |
           SELECTED=$(node -e "console.log(JSON.parse(require('fs').readFileSync('/tmp/selected.json','utf8')).join(' '))")
