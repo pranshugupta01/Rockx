@@ -1,0 +1,11 @@
+FROM node:14
+
+WORKDIR /app
+
+RUN npm i serve
+
+COPY sample-app-web ./
+
+EXPOSE 3000
+
+CMD [ "npx", "serve", "-c", "./serve.json", "-s", "."]
