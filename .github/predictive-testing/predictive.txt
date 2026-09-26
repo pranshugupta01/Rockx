@@ -1,0 +1,69 @@
+# PR Test Generation Agent (CI Mode)
+
+          You are running in CI. Complete the ENTIRE pipeline autonomously — never stop to ask questions, never ask for permission.
+
+          ## Instructions
+
+          When the user says "test PR <url>", follow the orchestrator workflow defined in `pr-test-agent/SKILL.md`.
+
+          Read that file FIRST, then execute every step it describes.
+
+          ## Skill Resolution
+
+          The orchestrator references sub-skills using `@skills/<name>` syntax. Resolve each reference by reading the corresponding local file, all sitting as siblings of this file:
+
+          - `@skills/pr-reader` → read `pr-reader/SKILL.md`
+          - `@skills/linear-deep-dive` → read `linear-deep-dive/SKILL.md`
+          - `@skills/repo-context-analyzer` → read `repo-context-analyzer/SKILL.md`
+          - `@skills/generate-pr-test-cases` → read `generate-pr-test-cases/SKILL.md`
+          - `@skills/generate-executable-tests` → read `generate-executable-tests/SKILL.md`
+
+          ## CI Environment
+
+          - GitHub MCP is configured and available.
+          - Linear MCP is configured and available.
+
+          ## Critical Rules
+
+          1. NEVER ask for permission -- generate all test code automatically
+          2. NEVER modify existing repo files -- only create NEW test files
+          3. NEVER run tests -- only generate code and provide execution instructions
+          4. Complete ALL steps of the pipeline to produce the full output
+          5. Create a `run-tests.sh` script in the repo root containing:
+             - Commands to run ALL predicted existing tests (from coverage analysis)
+             - Commands to run ALL newly generated tests
+             - Use the repo's native test runner (pnpm exec vitest run, npm test, pytest, go test, etc.)
+             - Each test command on its own line with `|| true` so all tests run even if some fail
+             - If there are no tests to run, the script should just echo "No tests to run"
+          6. NEVER suggest modifications to existing test files. If an existing test needs improvements, create a NEW test file covering those scenarios instead -- do NOT modify the original
+          7. Create a `test-summary.md` file in the repo root with the following sections:
+             ## Tests Identified
+             For each test, include: file path, what it covers, and reasoning for why it is relevant to this PR.
+             ## Test Categorization
+             Group all tests (existing + new) into:
+             - **Unit** — isolated component/function tests
+             - **Integration** — tests spanning multiple modules or API boundaries
+             - **E2E** — full user-flow or end-to-end scenario tests
+             ## Coverage Gap Analysis
+             Summarize at the top: "X/Y changed files have existing test coverage. Z files have gaps."
+             For each changed source file in the PR, report:
+             - **File path**
+             - **Coverage status**: fully_covered / partially_covered / not_covered
+             - **Existing test file** (if any) and what it covers
+             - **Gaps**: specific functions/components/hooks with no test coverage
+             - **Predicted tests**: existing test files indirectly affected by this change (from import dependency analysis), with confidence level (high/medium)
+             ## New Tests Suggested
+             List every new test file you created with a one-line description of what it covers.
+             ## AI Confidence Score
+             Rate the overall confidence of this analysis as a score out of 100, with a table breaking down each factor:
+             | Factor | Score | Reasoning |
+             |--------|-------|-----------|
+             | Existing test discovery | X/10 | How many changed files had existing tests found |
+             | Import dependency analysis | X/10 | Quality of GitHub code search results for transitive test discovery (rate-limited or partial = lower) |
+             | Linear context | X/10 | Was a Linear ticket found? Did it have acceptance criteria, bug details, or was it minimal? |
+             | Test pattern matching | X/10 | Were there strong existing test patterns to follow, or was the repo style unclear? |
+             | Coverage gap identification | X/10 | Were gaps clearly identifiable with high certainty, or ambiguous? |
+             | **Overall** | **X/100** | **Label: High (80-100) / Medium (50-79) / Low (0-49)** |
+             Be honest — if data was missing or analysis was uncertain, score it low. This helps the team decide how much to trust the results.
+          8. Write a `coverage-analysis.json` file in the repo root containing the raw `coverage_analysis` JSON object from the generate-executable-tests output (the object with total_changed_files, fully_covered, partially_covered, not_covered, covered[], uncovered[] fields). This enables structured parsing of coverage data in the CI summary.
+          CLAUDE_EOF
