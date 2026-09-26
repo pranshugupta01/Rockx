@@ -7,7 +7,7 @@ effort: low
 ## What this explicitly does NOT do
 
 - No BrowserStack, no Maestro, no TMS of any kind, no automation-tier tagging.
-- No Google Drive, Glean, Figma, Confluence, or Jira reads — the ticket's own description, comments, and attachments text are the *only* spec source. If the real PRD only lives in a linked Google Doc and isn't restated in the ticket, tell the user the spec is thin rather than trying to fetch it.
+- No Google Drive, Glean, Figma, Confluence, or Jira reads — but **GitHub wiki links attached to the ticket ARE fetched** (they're an attachment, not a separate doc store). The flow allows exactly ONE external doc source: a GitHub wiki page attached to the ticket. Anything else (Google Doc, Confluence, Figma, etc.) is treated as a thin-spec signal and surfaced to the user.
 - No PRD-quality gate, no scope-mode slicing across sibling tickets — this is a single-ticket, single-pass flow.
 - No comment-posting to GitHub or Linear as the result surface. The pass/fail report is rendered directly back to the user in this session — never written back to the PR or the ticket. The one thing that *is* written back to Linear is the test-case sub-issue itself (Step 6), because that's meant to be a durable, referenceable artifact, not a transient report.
 - No CI trigger. This only runs when a human explicitly invokes it (via the ticket id) — the GitHub-Actions/predictive-testing track is a separate, deferred effort and this skill does not wire into it.
@@ -23,7 +23,14 @@ Plain-text ask (not `AskUserQuestion` — this is free text): *"What Linear tick
 - `get_issue` on the ticket: `title`, `description`, `labels`, `state`, `parent`, `attachments`.
 - `list_comments` for the ticket, chronological — a scope correction or an AC clarification posted as a comment is just as load-bearing as text in the description.
 - If `parent` exists, do the same `get_issue`/`list_comments` on the parent for surrounding context.
-- Build `ticket_context` = title + description + any explicit AC-style bullets ("should", "must", numbered requirements, Given/When/Then already present) + the comment thread. This is the entire spec — there is no fallback doc to fetch if it's thin. If it genuinely looks too sparse to generate anything meaningful from (a one-line description, no comments, no AC), say so and ask the user to paste the missing detail in plain text rather than guessing.
+
+**2a. GitHub wiki PRD fetch** (when a wiki link is attached). Scan `attachments[]` for any URL matching `^https://github\.com/[^/]+/[^/]+/(wiki|blob)/.*$` — wiki pages, repo markdown files, etc. The ticket author's intent is clearly that *this* attachment is the PRD, so treat it as the authoritative spec source:
+   - Extract `owner`, `repo`, and the path after `/wiki/` (or after `/blob/`) from the URL. For a wiki URL like `https://github.com/org/repo/wiki/Page-Name`, the path is `Page-Name`.
+   - Use GitHub MCP (`mcp__github__get_file_contents`) to fetch the raw markdown. For a wiki page, the underlying file path is `wiki/Page-Name.md` on the default branch.
+   - If the fetch returns markdown, prepend it to `ticket_context` as `## PRD (from wiki)\n\n<markdown content>` — it is the spec, the ticket description is supplemental context.
+   - If the fetch fails (404, permissions, not a wiki page), tell the user: *"The PRD wiki link in the attachments isn't readable via GitHub MCP — check the repo, or paste the PRD content here."* Do NOT silently fall back to ticket-description-only; that produced poor scenarios when this exact case failed in testing.
+   - Multiple wiki/doc attachments: if more than one URL matches the wiki/blob pattern, present them to the user (plain text) and ask which one is THE PRD before fetching. Never guess.
+- Build `ticket_context` = title + description + any explicit AC-style bullets ("should", "must", numbered requirements, Given/When/Then already present) + the comment thread + PRD markdown from the wiki (if attached and fetched). This is the entire spec. If after the wiki fetch the context still looks too sparse to generate anything meaningful from (a one-line description, no comments, no AC), say so and ask the user to paste the missing detail in plain text rather than guessing.
 
 ### Step 3 — Determine ticket state
 
@@ -59,17 +66,24 @@ Present the list to the user in plain text and let them edit/add/remove/confirm 
 
 ### Step 6 — Create the sub-issue
 
-Format the confirmed scenarios as one clean markdown body:
+Format the confirmed scenarios as one clean markdown body. The first scenario carries an extra "Source" line so reviewers can see whether each scenario came from the wiki PRD, ticket description, or derivation:
 
 ```
 ## Test Scenarios for <ticket-key>: <ticket title>
 
-### Scenario 1: <name> (explicit)
+**PRD source:** <linked wiki URL>  |  **Ticket:** <linear-link>
+
+### Scenario 1: <name> [explicit · PRD]
 Given <...>
 When <...>
 Then <...>
 
-### Scenario 2: <name> (derived — please review)
+### Scenario 2: <name> [explicit · ticket]
+Given <...>
+When <...>
+Then <...>
+
+### Scenario 3: <name> [derived — please review]
 ...
 ```
 
