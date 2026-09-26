@@ -16,7 +16,11 @@ permissions:
 
 jobs:
   predictive-selection:
-    runs-on: ubuntu-latest
+    # Pinned to 22.04, not ubuntu-latest (now 24.04/"noble"): Playwright's
+    # `--with-deps` installer on this pinned Playwright version doesn't yet
+    # know 24.04 renamed libasound2 -> libasound2t64, which hard-fails apt
+    # with "no installation candidate". 22.04 still has the old package name.
+    runs-on: ubuntu-22.04
     defaults:
       run:
         working-directory: playwright-study
@@ -139,9 +143,15 @@ jobs:
           else
             # Install openai without modifying package.json (the LLM client
             # is needed only at runtime; the project's own deps stay clean).
-            # --no-save + --silent + explicit cache buster so a stale npm
-            # cache from a prior interrupted run never wedges this step.
-            npm install --no-save --no-audit --no-fund --silent openai@latest
+            # --prefix .. installs into the repo root's node_modules, NOT
+            # playwright-study/node_modules (cwd here) — Node's module
+            # resolution for the dynamic import() in agentic-blast-radius.mjs
+            # walks up from that SCRIPT's own location (.github/predictive-
+            # testing/scripts/), which playwright-study/node_modules is a
+            # sibling of, not an ancestor of, so it would never be found
+            # there. The repo root IS an ancestor of both, so --prefix ..
+            # is the one location that's resolvable from both places.
+            npm install --prefix .. --no-save --no-audit --no-fund --silent openai@latest
             # Pass changed files as xargs argv from disk — never inline the
             # heredoc output (which carries embedded newlines that bash
             # would otherwise split into separate "commands").
