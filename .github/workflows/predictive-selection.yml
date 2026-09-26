@@ -92,11 +92,18 @@ jobs:
           # static-impact-analysis script (run with absRoot=.) expects.
           FILES=$(git diff --name-only "${{ steps.pr.outputs.base_sha }}" "${{ steps.pr.outputs.head_sha }}" -- src tests sample-app-web | sed 's#^playwright-study/##')
           echo "$FILES"
+          # Write the file list to a real file (not a heredoc step-output) so
+          # the next step can pass it as a single argv element. Bash on the
+          # previous run split the heredoc-expanded multi-line text into
+          # separate commands and tried to "execute" each filename (exit 126:
+          # Permission denied on a .js file because it isn't +x).
+          echo "$FILES" > /tmp/changed-files.txt
           {
             echo "files<<EOF"
             echo "$FILES"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
+          echo "files_path=/tmp/changed-files.txt" >> "$GITHUB_OUTPUT"
 
       # Agentic blast-radius check via a plain OpenAI-compatible chat
       # completion (TrueFoundry's LLM gateway). Reads files already checked
@@ -109,7 +116,11 @@ jobs:
           TRUEFOUNDRY_MODEL_BASE_URL: ${{ secrets.TRUEFOUNDRY_MODEL_BASE_URL }}
           TRUEFOUNDRY_MODEL_API_KEY: ${{ secrets.TRUEFOUNDRY_MODEL_API_KEY }}
         run: |
-          if [ -z "$(echo '${{ steps.changed.outputs.files }}' | tr -d '[:space:]')" ]; then
+          # Read file list from disk (one path per line) instead of inlining
+          # the heredoc step-output — the heredoc preserves embedded newlines
+          # that bash then interprets as command separators, which is what
+          # produced the previous "Permission denied" exit 126.
+          if [ ! -s /tmp/changed-files.txt ] || ! grep -q '[^[:space:]]' /tmp/changed-files.txt; then
             echo "No src/tests/sample-app-web files changed — nothing to select."
             echo '[]' > /tmp/selected.json
           else
@@ -118,9 +129,12 @@ jobs:
             # --no-save + --silent + explicit cache buster so a stale npm
             # cache from a prior interrupted run never wedges this step.
             npm install --no-save --no-audit --no-fund --silent openai@latest
+            # Pass changed files as xargs argv from disk — never inline the
+            # heredoc output (which carries embedded newlines that bash
+            # would otherwise split into separate "commands").
             node ../.github/predictive-testing/scripts/agentic-blast-radius.mjs \
               . \
-              ${{ steps.changed.outputs.files }} \
+              $(cat /tmp/changed-files.txt) \
               > /tmp/selected.json || echo '[]' > /tmp/selected.json
           fi
           echo "Selected specs:"
