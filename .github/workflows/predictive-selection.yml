@@ -141,6 +141,13 @@ jobs:
           cat /tmp/selected.json
 
       - name: Install dependencies
+        env:
+          # husky's `prepare` script (defined in playwright-study/package.json
+          # as `husky install`) walks up from cwd to find .git. In this repo
+          # .git lives at the parent (one level up from playwright-study/), not
+          # inside it — point husky there explicitly so npm ci doesn't fail
+          # with "husky - .git can't be found".
+          HUSKY_GIT_DIR: ${{ github.workspace }}/.git
         run: npm ci
 
       - name: Install Playwright browsers
