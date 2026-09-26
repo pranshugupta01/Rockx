@@ -76,11 +76,12 @@ ${changedContents}
 ALL TEST SPEC FILES (path shown in each "---" header):
 ${specContents}
 
-Task: identify which spec files reference the SAME literal values, string constants,
-route paths, or exported symbol names that the changed files define/export or modify,
-BUT do not import the changed files directly (a static import-graph check already
-covers direct/transitive imports — only report specs that would be missed by that,
-i.e. coupled through a shared literal/value, not through an import statement).
+Task: identify every spec file whose test coverage could be affected by these changes.
+This includes BOTH: (a) specs that exercise the changed files directly or transitively
+through imports/fixtures, AND (b) specs coupled only through a shared literal value,
+constant, route path, or exported symbol name (no import edge at all). If you are
+genuinely unsure whether a spec is affected, include it — under-selecting and missing a
+real regression is worse than running one extra test.
 
 Respond with ONLY a JSON array of affected spec file paths exactly as shown in their
 "---" headers, e.g. ["tests/checkout.spec.ts"]. If none are found, respond with [].`;

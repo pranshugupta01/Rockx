@@ -86,45 +86,27 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
-      # Tier 1 — deterministic static import-graph selection. Always runs,
-      # costs nothing, never depends on any external service.
-      - name: Tier 1 — static impact analysis
-        run: |
-          if [ -z "$(echo '${{ steps.changed.outputs.files }}' | tr -d '[:space:]')" ]; then
-            echo "No src/tests files changed — Tier 1: writing [] and skipping."
-            echo '[]' > /tmp/tier1.json
-          else
-            node ../.github/predictive-testing/scripts/static-impact-analysis.mjs . \
-              ${{ steps.changed.outputs.files }} \
-              > /tmp/tier1.json
-          fi
-          cat /tmp/tier1.json
-
-      # Tier 2 — targeted blast-radius check via a plain OpenAI-compatible chat
+      # Agentic blast-radius check via a plain OpenAI-compatible chat
       # completion (TrueFoundry's LLM gateway). No agent framework, no MCP, no
-      # sandbox — reads files already checked out locally. Never fails the
-      # job — Tier 1's result stands alone if this is unavailable.
-      - name: Tier 2 — agentic blast-radius check
+      # sandbox — reads files already checked out locally. If this is
+      # unavailable/empty, fall back to running everything rather than
+      # silently skipping (no static tier backstopping it anymore).
+      - name: Agentic test selection
         env:
           TRUEFOUNDRY_MODEL_ID: ${{ secrets.TRUEFOUNDRY_MODEL_ID }}
           TRUEFOUNDRY_MODEL_BASE_URL: ${{ secrets.TRUEFOUNDRY_MODEL_BASE_URL }}
           TRUEFOUNDRY_MODEL_API_KEY: ${{ secrets.TRUEFOUNDRY_MODEL_API_KEY }}
         run: |
           if [ -z "$(echo '${{ steps.changed.outputs.files }}' | tr -d '[:space:]')" ]; then
-            echo "No src/tests files changed — Tier 2: writing [] and skipping."
-            echo '[]' > /tmp/tier2.json
+            echo "No src/tests/sample-app-web files changed — nothing to select."
+            echo '[]' > /tmp/selected.json
           else
             npm i --no-save openai
             node ../.github/predictive-testing/scripts/agentic-blast-radius.mjs \
               . \
               ${{ steps.changed.outputs.files }} \
-              > /tmp/tier2.json
+              > /tmp/selected.json
           fi
-          cat /tmp/tier2.json
-
-      - name: Merge Tier 1 + Tier 2 selection
-        run: |
-          node ../.github/predictive-testing/scripts/merge-selection.mjs /tmp/tier1.json /tmp/tier2.json > /tmp/selected.json
           echo "Selected specs:"
           cat /tmp/selected.json
 
