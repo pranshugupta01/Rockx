@@ -78,7 +78,7 @@ jobs:
           # pathspec to the repo-root-relative prefix, then strip that prefix
           # to get paths relative to this subfolder, which is what the
           # static-impact-analysis script (run with absRoot=.) expects.
-          FILES=$(git diff --name-only "${{ steps.pr.outputs.base_sha }}" "${{ steps.pr.outputs.head_sha }}" -- src tests | sed 's#^playwright-study/##')
+          FILES=$(git diff --name-only "${{ steps.pr.outputs.base_sha }}" "${{ steps.pr.outputs.head_sha }}" -- src tests sample-app-web | sed 's#^playwright-study/##')
           echo "$FILES"
           {
             echo "files<<EOF"

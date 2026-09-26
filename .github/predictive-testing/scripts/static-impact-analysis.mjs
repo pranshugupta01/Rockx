@@ -153,20 +153,33 @@ function main() {
     process.exit(2);
   }
   const absRoot = resolve(root);
-  const changedFilesAbs = changedFilesRel
-    .map((f) => resolve(absRoot, f))
-    .filter((f) => existsSync(f) && EXTS.includes(extname(f)));
+  const existingChangedAbs = changedFilesRel.map((f) => resolve(absRoot, f)).filter((f) => existsSync(f));
+
+  const allFiles = walkAllSourceFiles(absRoot);
+  const specFiles = allFiles.filter((f) => /\.spec\.[tj]sx?$/.test(f));
+
+  // Safe fallback: any changed file that isn't under src/ or tests/ at all
+  // (e.g. the served app itself under sample-app-web/, or any extension we
+  // don't parse imports for) has no representation in this repo's import
+  // graph — we cannot statically know what it affects, so never guess "none":
+  // select every spec rather than silently under-selecting.
+  const inGraphDir = (f) => f.startsWith(join(absRoot, 'src') + '/') || f.startsWith(join(absRoot, 'tests') + '/');
+  const hasOutOfGraphChange = existingChangedAbs.some((f) => !inGraphDir(f));
+  if (hasOutOfGraphChange) {
+    console.log(JSON.stringify(specFiles.map((f) => relative(absRoot, f)).sort(), null, 2));
+    return;
+  }
+
+  const changedFilesAbs = existingChangedAbs.filter((f) => EXTS.includes(extname(f)));
 
   if (changedFilesAbs.length === 0) {
     console.log(JSON.stringify([]));
     return;
   }
 
-  const allFiles = walkAllSourceFiles(absRoot);
   const { forward, contents } = buildForwardGraph(allFiles);
   const reverse = buildReverseGraph(forward);
   const hubFiles = findFixtureHubFiles(contents);
-  const specFiles = allFiles.filter((f) => /\.spec\.[tj]sx?$/.test(f));
 
   // Per-fixture forward reachability: everything a fixture's class transitively
   // imports is "in scope" for that fixture — this is what lets us resolve
