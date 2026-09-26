@@ -3,6 +3,16 @@ name: Predictive Test Selection
 on:
   pull_request:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      pr_url:
+        description: "PR URL to test, e.g. https://github.com/owner/repo/pull/123"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: read
 
 jobs:
   predictive-selection:
@@ -21,6 +31,45 @@ jobs:
         with:
           node-version: 20
 
+      # workflow_dispatch has no `github.event.pull_request.*` context — resolve
+      # the PR's number and both SHAs from the input URL via gh CLI instead, so
+      # every step below can use the same steps.pr.outputs.* regardless of
+      # which trigger fired.
+      - name: Resolve PR info
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            PR_URL="${{ inputs.pr_url }}"
+            PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$')
+            if [ -z "$PR_NUMBER" ]; then
+              echo "Could not extract a PR number from: $PR_URL" >&2
+              exit 1
+            fi
+            PR_JSON=$(gh pr view "$PR_NUMBER" --repo "${{ github.repository }}" --json baseRefOid,headRefOid,headRefName)
+            BASE_SHA=$(echo "$PR_JSON" | jq -r '.baseRefOid')
+            HEAD_SHA=$(echo "$PR_JSON" | jq -r '.headRefOid')
+            HEAD_REF=$(echo "$PR_JSON" | jq -r '.headRefName')
+          else
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+            HEAD_REF="${{ github.event.pull_request.head.ref }}"
+          fi
+          echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$HEAD_SHA" >> "$GITHUB_OUTPUT"
+          echo "head_ref=$HEAD_REF" >> "$GITHUB_OUTPUT"
+
+      # For workflow_dispatch, the initial checkout above is on the default
+      # branch — explicitly move to the PR's actual head commit so the rest of
+      # the pipeline runs against the PR's real code, not against main.
+      - name: Checkout PR head (workflow_dispatch only)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          cd ..
+          git fetch origin "${{ steps.pr.outputs.head_sha }}"
+          git checkout "${{ steps.pr.outputs.head_sha }}"
+
       - name: Get changed files
         id: changed
         run: |
@@ -29,7 +78,7 @@ jobs:
           # pathspec to the repo-root-relative prefix, then strip that prefix
           # to get paths relative to this subfolder, which is what the
           # static-impact-analysis script (run with absRoot=.) expects.
-          FILES=$(git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" -- src tests | sed 's#^playwright-study/##')
+          FILES=$(git diff --name-only "${{ steps.pr.outputs.base_sha }}" "${{ steps.pr.outputs.head_sha }}" -- src tests | sed 's#^playwright-study/##')
           echo "$FILES"
           {
             echo "files<<EOF"
