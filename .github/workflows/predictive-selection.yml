@@ -70,6 +70,18 @@ jobs:
           git fetch origin "${{ steps.pr.outputs.head_sha }}"
           git checkout "${{ steps.pr.outputs.head_sha }}"
 
+      # Whatever got checked out above (the pull_request merge-ref, which can
+      # be stale, or the PR's raw head commit for workflow_dispatch) may not
+      # contain the pipeline's own scripts under .github/ — force them to
+      # always come from main's current tip, unconditionally, right before
+      # they're used. Also the right security posture: a PR shouldn't be able
+      # to alter the CI logic that tests it.
+      - name: Ensure predictive-testing scripts are from main
+        run: |
+          cd ..
+          git fetch origin main
+          git checkout origin/main -- .github
+
       - name: Get changed files
         id: changed
         run: |
