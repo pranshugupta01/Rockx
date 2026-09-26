@@ -1,0 +1,89 @@
+/* Search/filter box for the Inventory page.
+   Additive-only stylesheet. Matches the existing Swag Labs visual language. */
+
+.search_filter_container {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 16px 20px 0 20px;
+}
+
+.search_filter_row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    max-width: 360px;
+    position: relative;
+}
+
+#search-products-input {
+    flex: 1;
+    height: 36px;
+    padding: 0 36px 0 12px;
+    border: 1px solid #c0c0c0;
+    border-radius: 4px;
+    font-size: 14px;
+    font-family: inherit;
+    background-color: #ffffff;
+    color: #1a1a1a;
+    box-sizing: border-box;
+}
+
+#search-products-input:focus {
+    outline: 2px solid #3b82f6;
+    outline-offset: 1px;
+    border-color: #3b82f6;
+}
+
+#search-products-input::placeholder {
+    color: #8a8a8a;
+}
+
+#button-clear-search {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 24px;
+    height: 24px;
+    border: none;
+    background: transparent;
+    color: #555;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    border-radius: 50%;
+    padding: 0;
+}
+
+#button-clear-search:hover {
+    background: #eee;
+    color: #1a1a1a;
+}
+
+#button-clear-search:focus {
+    outline: 2px solid #3b82f6;
+    outline-offset: 1px;
+}
+
+#button-clear-search[hidden] {
+    display: none;
+}
+
+#label-search-results {
+    margin-top: 8px;
+    font-size: 13px;
+    color: #555;
+    min-height: 1em;
+}
+
+#label-search-results[hidden] {
+    display: none;
+}
+
+/* Filter-state class toggled by filter.js on inventory items.
+   Uses display:none so the Sort feature's DOM reordering is unaffected. */
+.inventory_item.filtered-out {
+    display: none !important;
+}
